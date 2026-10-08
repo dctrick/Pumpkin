@@ -89,6 +89,7 @@ mod tick;
 mod time;
 mod title;
 mod tps;
+mod tpsbar;
 mod transfer;
 mod trigger;
 mod waypoint;
@@ -161,6 +162,7 @@ pub fn default_dispatcher(
     me::register(&mut dispatcher, registry);
     msg::register(&mut dispatcher, registry);
     tps::register(&mut dispatcher, registry);
+    tpsbar::register(&mut dispatcher, registry);
     transfer::register(&mut dispatcher, registry);
     gamemode::register(&mut dispatcher, registry);
     defaultgamemode::register(&mut dispatcher, registry);

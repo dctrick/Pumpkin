@@ -478,6 +478,9 @@ pub struct Player {
     /// The player's permission level.
     pub permission_lvl: AtomicCell<PermissionLvl>,
     pub subscribed_debug_sample: AtomicBool,
+    /// Whether the player toggled on the `/tpsbar` boss bar. Locked while its packets are sent,
+    /// so turning it off can't race a tick that is about to resend it.
+    pub tps_bar: Mutex<bool>,
     /// Whether the client has reported that it has loaded.
     pub client_loaded: AtomicBool,
     pub bedrock_spawned: AtomicBool,
@@ -808,6 +811,7 @@ impl Player {
             last_sent_food: AtomicU8::new(0),
             last_food_saturation: AtomicBool::new(true),
             subscribed_debug_sample: AtomicBool::new(false),
+            tps_bar: Mutex::new(false),
             has_played_before: AtomicBool::new(false),
             root_vehicle_uuid: AtomicCell::new(None),
             chat_session: Arc::new(Mutex::new(ChatSession::default())), // Placeholder value until the player actually sets their session id

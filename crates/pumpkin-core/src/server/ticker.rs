@@ -129,6 +129,7 @@ impl Ticker {
             }
 
             server.update_tick_times(tick_duration_nanos);
+            super::tps_bar::tick(server);
 
             if STOP_INTERRUPT.is_cancelled() {
                 break 'ticker;
