@@ -18,19 +18,19 @@ struct TpsBarExecutor;
 impl CommandExecutor for TpsBarExecutor {
     fn execute(&self, context: &CommandContext) -> CommandExecutorResult {
         let player = context.source.player_or_err()?;
-        let mut tps_bar = player
+        let mut shown = player
             .tps_bar
             .lock()
             .unwrap_or_else(PoisonError::into_inner);
-        *tps_bar = !*tps_bar;
-        let enabled = *tps_bar;
+        *shown = !*shown;
+        let enabled = *shown;
 
         if enabled {
             player.send_bossbar(&tps_bar::bossbar(context.server()));
         } else {
             player.remove_bossbar(TPS_BAR_UUID);
         }
-        drop(tps_bar);
+        drop(shown);
 
         let state = if enabled { "on" } else { "off" };
         context
