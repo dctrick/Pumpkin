@@ -1,7 +1,11 @@
 use arc_swap::ArcSwap;
-use std::sync::{
-    Arc,
-    atomic::{AtomicBool, AtomicI32, AtomicU8, AtomicU32, AtomicU64},
+use crossbeam::atomic::AtomicCell;
+use std::{
+    num::NonZero,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, AtomicI32, AtomicU8, AtomicU32, AtomicU64},
+    },
 };
 use tokio::sync::broadcast;
 use tracing::warn;
@@ -25,8 +29,8 @@ pub struct ManagementSettings {
     pub spawn_protection_radius: AtomicU32,
     pub force_game_mode: AtomicBool,
     pub game_mode: ArcSwap<String>,
-    pub view_distance: AtomicU32,
-    pub simulation_distance: AtomicU32,
+    pub view_distance: AtomicCell<NonZero<u8>>,
+    pub simulation_distance: AtomicCell<NonZero<u8>>,
     pub accept_transfers: AtomicBool,
     pub status_heartbeat_interval: AtomicU64,
     pub operator_user_permission_level: AtomicU8,
@@ -57,10 +61,8 @@ impl ManagementSettings {
             game_mode: ArcSwap::from_pointee(
                 format!("{:?}", basic.default_gamemode).to_lowercase(),
             ),
-            view_distance: AtomicU32::new(advanced.networking.java.view_distance.get() as u32),
-            simulation_distance: AtomicU32::new(
-                advanced.networking.java.simulation_distance.get() as u32
-            ),
+            view_distance: AtomicCell::new(advanced.networking.java.view_distance),
+            simulation_distance: AtomicCell::new(advanced.networking.java.simulation_distance),
             accept_transfers: AtomicBool::new(basic.accepts_transfers),
             status_heartbeat_interval: AtomicU64::new(management.status_heartbeat_interval.into()),
             operator_user_permission_level: AtomicU8::new(basic.op_permission_level as u8),

@@ -71,6 +71,18 @@ use player_data::PlayerDataConfig;
 use resource_pack::ResourcePackConfig;
 use world::LevelConfig;
 
+/// Chunk radius that view and simulation distance may be set to.
+pub const DISTANCE_RANGE: std::ops::RangeInclusive<u8> = 2..=64;
+
+/// Returns `distance` as a chunk radius when it lies in [`DISTANCE_RANGE`].
+#[must_use]
+pub fn checked_distance(distance: i32) -> Option<NonZero<u8>> {
+    u8::try_from(distance)
+        .ok()
+        .filter(|distance| DISTANCE_RANGE.contains(distance))
+        .and_then(NonZero::new)
+}
+
 /// Root configuration container for Pumpkin server settings.
 #[derive(Deserialize, Serialize, Default)]
 #[serde(default)]
@@ -96,25 +108,18 @@ impl LoadConfiguration for PumpkinConfig {
         self.advanced.validate();
         self.telemetry.validate();
 
-        let Some(min_vd) = NonZero::new(2) else {
-            return;
-        };
-        let Some(max_vd) = NonZero::new(64) else {
-            return;
-        };
-
         // Validate Java
         assert!(
             self.advanced.networking.java.keep_alive_time > 0,
             "Java Keep alive time must be greater than 0"
         );
         assert!(
-            self.advanced.networking.java.view_distance >= min_vd,
-            "Java View distance must be at least 2"
+            DISTANCE_RANGE.contains(&self.advanced.networking.java.view_distance.get()),
+            "Java View distance must be between 2 and 64"
         );
         assert!(
-            self.advanced.networking.java.view_distance <= max_vd,
-            "Java View distance must be less than 64"
+            DISTANCE_RANGE.contains(&self.advanced.networking.java.simulation_distance.get()),
+            "Java Simulation distance must be between 2 and 64"
         );
         if self.advanced.networking.java.online_mode {
             assert!(
@@ -125,12 +130,8 @@ impl LoadConfiguration for PumpkinConfig {
 
         // Validate Bedrock
         assert!(
-            self.advanced.networking.bedrock.view_distance >= min_vd,
-            "Bedrock View distance must be at least 2"
-        );
-        assert!(
-            self.advanced.networking.bedrock.view_distance <= max_vd,
-            "Bedrock View distance must be less than 64"
+            DISTANCE_RANGE.contains(&self.advanced.networking.bedrock.view_distance.get()),
+            "Bedrock View distance must be between 2 and 64"
         );
         if self.basic.allow_chat_reports {
             assert!(

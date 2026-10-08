@@ -31,8 +31,10 @@ use pumpkin_world::world::WorldPortalExt;
 use tracing::{debug, error, info, warn};
 
 use pumpkin_protocol::java::client::login::CEncryptionRequest;
-use pumpkin_protocol::java::client::play::{CChangeDifficulty, CTabList};
-use pumpkin_protocol::{ClientPacket, java::client::config::CPluginMessage};
+use pumpkin_protocol::java::client::play::{
+    CChangeDifficulty, CSetChunkCacheRadius, CSetSimulationDistance, CTabList,
+};
+use pumpkin_protocol::{ClientPacket, VarInt, java::client::config::CPluginMessage};
 use pumpkin_util::Difficulty;
 use pumpkin_util::text::TextComponent;
 use pumpkin_world::world_info::anvil::{
@@ -44,6 +46,7 @@ use rayon::prelude::*;
 use rsa::RsaPublicKey;
 use std::fs;
 use std::net::IpAddr;
+use std::num::NonZero;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicI32, AtomicI64, AtomicU32};
 use std::{future::Future, sync::atomic::Ordering, time::Duration};
@@ -921,6 +924,30 @@ impl Server {
                     difficulty: (difficulty as u32).into(),
                 },
             );
+        }
+    }
+
+    /// Sets the Java view distance and resends chunks to every online player.
+    pub fn set_view_distance(&self, distance: NonZero<u8>) {
+        self.management_hub.settings.view_distance.store(distance);
+        self.refresh_chunk_distance(&CSetChunkCacheRadius::new(VarInt(distance.get().into())));
+    }
+
+    /// Sets the simulation distance and moves every online player's chunk tickets.
+    pub fn set_simulation_distance(&self, distance: NonZero<u8>) {
+        self.management_hub
+            .settings
+            .simulation_distance
+            .store(distance);
+        self.refresh_chunk_distance(&CSetSimulationDistance::new(VarInt(distance.get().into())));
+    }
+
+    fn refresh_chunk_distance<P: ClientPacket>(&self, packet: &P) {
+        for world in self.worlds.load().iter() {
+            world.broadcast_packet_all(packet);
+            for player in world.players.load().iter() {
+                crate::world::chunker::update_position(player);
+            }
         }
     }
 

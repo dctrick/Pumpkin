@@ -1,3 +1,4 @@
+use pumpkin_config::{DISTANCE_RANGE, checked_distance};
 use pumpkin_data::packet::CURRENT_MC_VERSION;
 use pumpkin_util::text::click::ClickEvent;
 use pumpkin_util::text::hover::HoverEvent;
@@ -5,19 +6,29 @@ use pumpkin_util::text::{TextComponent, color::NamedColor};
 use pumpkin_util::translation::get_translation_text;
 use serde::Deserialize;
 use std::borrow::Cow;
+use std::num::NonZero;
 use std::sync::{LazyLock, Mutex};
 use std::time::{Duration, Instant};
 
 use pumpkin_util::PermissionLvl;
 use pumpkin_util::permission::{Permission, PermissionDefault, PermissionRegistry};
 
-use crate::command::argument_builder::{ArgumentBuilder, command};
+use crate::command::argument_builder::{
+    ArgumentBuilder, LiteralArgumentBuilder, argument, command, literal,
+};
+use crate::command::argument_types::core::integer::IntegerArgumentType;
 use crate::command::context::command_context::CommandContext;
+use crate::command::errors::error_types::INTEGER_TOO_LOW;
 use crate::command::node::dispatcher::CommandDispatcher;
 use crate::command::node::{CommandExecutor, CommandExecutorResult};
+use crate::server::Server;
 
 const DESCRIPTION: &str = "Display information about Pumpkin.";
 const PERMISSION: &str = "pumpkin:command.pumpkin";
+const VIEW_DISTANCE_PERMISSION: &str = "pumpkin:command.pumpkin.view_distance";
+const SIMULATION_DISTANCE_PERMISSION: &str = "pumpkin:command.pumpkin.simulation_distance";
+
+const ARG_DISTANCE: &str = "distance";
 
 const CACHE_DURATION: Duration = Duration::from_hours(24);
 
@@ -412,17 +423,85 @@ impl CommandExecutor for Executor {
     }
 }
 
+struct DistanceExecutor {
+    label: &'static str,
+    apply: fn(&Server, NonZero<u8>),
+}
+
+impl CommandExecutor for DistanceExecutor {
+    fn execute(&self, context: &CommandContext) -> CommandExecutorResult {
+        let raw = IntegerArgumentType::get(context, ARG_DISTANCE)?;
+        let distance = checked_distance(raw).ok_or_else(|| {
+            INTEGER_TOO_LOW.create_without_context_args_slice(&[
+                TextComponent::text(DISTANCE_RANGE.start().to_string()),
+                TextComponent::text(raw.to_string()),
+            ])
+        })?;
+
+        (self.apply)(context.server(), distance);
+        context.source.send_feedback(
+            TextComponent::text(format!("{} distance set to {distance} chunks", self.label)),
+            true,
+        );
+
+        Ok(raw)
+    }
+}
+
+fn distance_literal(
+    name: &'static str,
+    permission: &'static str,
+    executor: DistanceExecutor,
+) -> LiteralArgumentBuilder {
+    literal(name).requires(permission).then(
+        argument(
+            ARG_DISTANCE,
+            IntegerArgumentType::new(
+                i32::from(*DISTANCE_RANGE.start()),
+                i32::from(*DISTANCE_RANGE.end()),
+            ),
+        )
+        .executes(executor),
+    )
+}
+
 pub fn register(dispatcher: &mut CommandDispatcher, registry: &PermissionRegistry) {
     registry.register_permission_or_panic(Permission::new(
         PERMISSION,
         DESCRIPTION,
         PermissionDefault::Op(PermissionLvl::Zero),
     ));
+    registry.register_permission_or_panic(Permission::new(
+        VIEW_DISTANCE_PERMISSION,
+        "Changes the server view distance without a restart.",
+        PermissionDefault::Op(PermissionLvl::Three),
+    ));
+    registry.register_permission_or_panic(Permission::new(
+        SIMULATION_DISTANCE_PERMISSION,
+        "Changes the server simulation distance without a restart.",
+        PermissionDefault::Op(PermissionLvl::Three),
+    ));
 
     dispatcher.register_with_aliases(
         command("pumpkin", DESCRIPTION)
             .requires(PERMISSION)
-            .executes(Executor),
+            .executes(Executor)
+            .then(distance_literal(
+                "view-distance",
+                VIEW_DISTANCE_PERMISSION,
+                DistanceExecutor {
+                    label: "View",
+                    apply: Server::set_view_distance,
+                },
+            ))
+            .then(distance_literal(
+                "sim-distance",
+                SIMULATION_DISTANCE_PERMISSION,
+                DistanceExecutor {
+                    label: "Simulation",
+                    apply: Server::set_simulation_distance,
+                },
+            )),
         &["version"],
     );
 }

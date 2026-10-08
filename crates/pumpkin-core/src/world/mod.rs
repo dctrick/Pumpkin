@@ -436,7 +436,7 @@ impl World {
 
     pub fn update_active_chunks(&self) {
         let sim_dist = self.server.upgrade().map_or(10, |s| {
-            s.advanced_config.networking.java.simulation_distance.get()
+            s.management_hub.settings.simulation_distance.load().get()
         }) as i32;
         let players = self.players.load();
         let forced_chunks = self
@@ -3183,19 +3183,19 @@ impl World {
                     .try_into()
                     .unwrap_or(u16::MAX.into()),
                 server
-                    .advanced_config
-                    .networking
-                    .java
+                    .management_hub
+                    .settings
                     .view_distance
+                    .load()
                     .get()
-                    .into(), //  TODO: view distance
+                    .into(),
                 server
-                    .advanced_config
-                    .networking
-                    .java
+                    .management_hub
+                    .settings
                     .simulation_distance
+                    .load()
                     .get()
-                    .into(), // TODO: sim view dinstance
+                    .into(),
                 false,
                 true,
                 false,

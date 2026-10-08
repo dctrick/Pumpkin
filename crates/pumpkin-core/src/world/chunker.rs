@@ -18,7 +18,7 @@ pub fn get_view_distance(player: &Player) -> NonZero<u8> {
         return fallback;
     };
     let max_view_distance = match player.client.as_ref() {
-        ClientPlatform::Java(_) => server.advanced_config.networking.java.view_distance,
+        ClientPlatform::Java(_) => server.management_hub.settings.view_distance.load(),
         ClientPlatform::Bedrock(_) => server.advanced_config.networking.bedrock.view_distance,
     };
     player
@@ -57,7 +57,34 @@ pub fn update_position(player: &Arc<Player>) {
     let view_distance = get_view_distance(player);
     let new_cylindrical = Cylindrical::new(new_chunk_center, view_distance);
 
-    if old_cylindrical == new_cylindrical {
+    let is_spectator = player.is_spectator();
+    let spectators_generate_chunks = world
+        .level_info
+        .load()
+        .game_rules
+        .spectators_generate_chunks;
+
+    let new_view_level = (!is_spectator || spectators_generate_chunks).then(|| {
+        pumpkin_world::chunk_system::ChunkLoading::get_level_from_view_distance(
+            u8::from(view_distance) + 1,
+        )
+    });
+
+    let new_sim_level = (!is_spectator || spectators_generate_chunks).then(|| {
+        let sim_dist = world.server.upgrade().map_or(10, |s| {
+            s.management_hub.settings.simulation_distance.load().get()
+        });
+        pumpkin_world::chunk_system::ChunkLoading::get_level_from_simulation_distance(sim_dist)
+    });
+
+    let mut held_tickets = player
+        .held_chunk_tickets
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+
+    // Simulation distance and spectator changes keep the cylinder but still move the tickets.
+    let tickets_changed = held_tickets.is_some_and(|held| held != (new_view_level, new_sim_level));
+    if old_cylindrical == new_cylindrical && !tickets_changed {
         return;
     }
 
@@ -83,30 +110,6 @@ pub fn update_position(player: &Arc<Player>) {
     let unloading_chunks: Vec<_> = unloading_iter.collect();
 
     let level = &world.level;
-    let mut held_tickets = player
-        .held_chunk_tickets
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
-
-    let is_spectator = player.is_spectator();
-    let spectators_generate_chunks = world
-        .level_info
-        .load()
-        .game_rules
-        .spectators_generate_chunks;
-
-    let new_view_level = (!is_spectator || spectators_generate_chunks).then(|| {
-        pumpkin_world::chunk_system::ChunkLoading::get_level_from_view_distance(
-            u8::from(view_distance) + 1,
-        )
-    });
-
-    let new_sim_level = (!is_spectator || spectators_generate_chunks).then(|| {
-        let sim_dist = world.server.upgrade().map_or(10, |s| {
-            s.advanced_config.networking.java.simulation_distance.get()
-        });
-        pumpkin_world::chunk_system::ChunkLoading::get_level_from_simulation_distance(sim_dist)
-    });
 
     {
         let mut lock = level

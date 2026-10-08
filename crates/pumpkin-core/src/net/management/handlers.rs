@@ -1,10 +1,11 @@
 use std::{
     net::IpAddr,
+    num::NonZero,
     str::FromStr,
     sync::{Arc, LazyLock, atomic::Ordering},
 };
 
-use pumpkin_config::{op::Op, whitelist::WhitelistEntry};
+use pumpkin_config::{DISTANCE_RANGE, checked_distance, op::Op, whitelist::WhitelistEntry};
 use pumpkin_data::{
     game_rules::{GameRule, GameRuleValue},
     packet::CURRENT_MC_VERSION,
@@ -84,6 +85,17 @@ fn parse_param<T: for<'de> Deserialize<'de>>(
     let val = extract_param(params, param_name)?;
     serde_json::from_value(val.clone())
         .map_err(|e| RpcError::invalid_params(Some(format!("Failed to parse parameter: {e}"))))
+}
+
+fn parse_distance(params: Option<&Value>) -> Result<NonZero<u8>, RpcError> {
+    let distance: i32 = parse_param(params, "distance")?;
+    checked_distance(distance).ok_or_else(|| {
+        RpcError::invalid_params(Some(format!(
+            "Distance {distance} is outside {}..={}",
+            DISTANCE_RANGE.start(),
+            DISTANCE_RANGE.end()
+        )))
+    })
 }
 
 const fn u8_to_permission_lvl(lvl: u8) -> PermissionLvl {
@@ -1085,22 +1097,12 @@ async fn execute_method(
 
         "minecraft:serversettings/view_distance" => {
             check_no_params(params)?;
-            Ok(json!(
-                server
-                    .management_hub
-                    .settings
-                    .view_distance
-                    .load(Ordering::Relaxed)
-            ))
+            Ok(json!(server.management_hub.settings.view_distance.load().get()))
         }
         "minecraft:serversettings/view_distance/set" => {
-            let dist: u32 = parse_param(params, "distance")?;
-            server
-                .management_hub
-                .settings
-                .view_distance
-                .store(dist, Ordering::Relaxed);
-            Ok(json!(dist))
+            let dist = parse_distance(params)?;
+            server.set_view_distance(dist);
+            Ok(json!(dist.get()))
         }
 
         "minecraft:serversettings/simulation_distance" => {
@@ -1110,17 +1112,14 @@ async fn execute_method(
                     .management_hub
                     .settings
                     .simulation_distance
-                    .load(Ordering::Relaxed)
+                    .load()
+                    .get()
             ))
         }
         "minecraft:serversettings/simulation_distance/set" => {
-            let dist: u32 = parse_param(params, "distance")?;
-            server
-                .management_hub
-                .settings
-                .simulation_distance
-                .store(dist, Ordering::Relaxed);
-            Ok(json!(dist))
+            let dist = parse_distance(params)?;
+            server.set_simulation_distance(dist);
+            Ok(json!(dist.get()))
         }
 
         "minecraft:serversettings/accept_transfers" => {
