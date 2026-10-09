@@ -1097,7 +1097,9 @@ async fn execute_method(
 
         "minecraft:serversettings/view_distance" => {
             check_no_params(params)?;
-            Ok(json!(server.management_hub.settings.view_distance.load().get()))
+            Ok(json!(
+                server.management_hub.settings.view_distance.load().get()
+            ))
         }
         "minecraft:serversettings/view_distance/set" => {
             let dist = parse_distance(params)?;

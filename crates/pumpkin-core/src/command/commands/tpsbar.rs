@@ -33,9 +33,10 @@ impl CommandExecutor for TpsBarExecutor {
         drop(shown);
 
         let state = if enabled { "on" } else { "off" };
-        context
-            .source
-            .send_feedback(TextComponent::text(format!("TPS bar turned {state}")), false);
+        context.source.send_feedback(
+            TextComponent::text(format!("TPS bar turned {state}")),
+            false,
+        );
 
         Ok(i32::from(enabled))
     }

@@ -47,8 +47,7 @@ pub fn bossbar(server: &Server) -> Bossbar {
         (BossbarColor::Red, NamedColor::Red)
     };
 
-    let ram =
-        used_memory_mb().map_or_else(|| "unavailable".to_string(), |mb| format!("{mb} MB"));
+    let ram = used_memory_mb().map_or_else(|| "unavailable".to_string(), |mb| format!("{mb} MB"));
 
     let title = TextComponent::text("MSPT: ")
         .add_child(TextComponent::text(format!("{mspt:.2}")).color_named(named))
