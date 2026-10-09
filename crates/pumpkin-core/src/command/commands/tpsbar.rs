@@ -10,7 +10,7 @@ use crate::command::node::dispatcher::CommandDispatcher;
 use crate::command::node::{CommandExecutor, CommandExecutorResult};
 use crate::server::tps_bar::{self, TPS_BAR_UUID};
 
-const DESCRIPTION: &str = "Toggles a boss bar showing MSPT, tick utilization and RAM.";
+const DESCRIPTION: &str = "Toggles a boss bar showing TPS, MSPT, tick utilization and RAM.";
 const PERMISSION: &str = "pumpkin:command.tpsbar";
 
 struct TpsBarExecutor;

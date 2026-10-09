@@ -32,12 +32,13 @@ fn used_memory_mb() -> Option<u64> {
     system.process(*pid).map(|p| p.memory() / BYTES_PER_MB)
 }
 
-/// Samples MSPT, tick utilization and process memory into a boss bar.
+/// Samples TPS, MSPT, tick utilization and process memory into a boss bar.
 #[must_use]
 pub fn bossbar(server: &Server) -> Bossbar {
     let mspt = server.get_mspt();
     let target_mspt = server.tick_rate_manager.nanoseconds_per_tick() as f64 / 1_000_000.0;
     let utilization = mspt / target_mspt;
+    let tps = server.get_tps().min(1000.0 / target_mspt);
 
     let (color, named) = if utilization < WARN_UTILIZATION {
         (BossbarColor::Green, NamedColor::Green)
@@ -49,7 +50,9 @@ pub fn bossbar(server: &Server) -> Bossbar {
 
     let ram = used_memory_mb().map_or_else(|| "unavailable".to_string(), |mb| format!("{mb} MB"));
 
-    let title = TextComponent::text("MSPT: ")
+    let title = TextComponent::text("TPS: ")
+        .add_child(TextComponent::text(format!("{tps:.1}")).color_named(named))
+        .add_child(TextComponent::text(" | MSPT: "))
         .add_child(TextComponent::text(format!("{mspt:.2}")).color_named(named))
         .add_child(TextComponent::text(" | Util: "))
         .add_child(TextComponent::text(format!("{:.1}%", utilization * 100.0)).color_named(named))
